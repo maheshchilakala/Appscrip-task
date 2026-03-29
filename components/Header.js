@@ -13,7 +13,8 @@ const Header = ({ selectedCategory, onCategorySelect, searchQuery, onSearchChang
 
   const navCategories = [
     { label: 'Shop All', apiCategory: 'All' },
-    { label: 'Apparel', apiCategory: "men's clothing" }, 
+    { label: "Men's", apiCategory: "men's clothing" }, 
+    { label: "Women's", apiCategory: "women's clothing" }, 
     { label: 'Jewellery', apiCategory: 'jewelery' },
     { label: 'Electronics', apiCategory: 'electronics' },
   ];

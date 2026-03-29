@@ -8,6 +8,7 @@ import CartDrawer from '../components/CartDrawer';
 import WishlistDrawer from '../components/WishlistDrawer';
 import AuthModal from '../components/AuthModal';
 import styles from '../styles/Home.module.css';
+import { STATIC_PRODUCTS } from '../constants/products';
 
 const SORT_OPTIONS = [
   { value: 'default', label: 'Featured' },
@@ -18,8 +19,8 @@ const SORT_OPTIONS = [
 ];
 
 export default function Home({ products, error }) {
-  // === Vercel SSR Hydration Debugging ===
-  console.log("Products Loaded:", products?.length || 0);
+  // === SSR/SSG Hydration Debugging ===
+  console.log("Static Products Loaded:", products?.length || 0);
 
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedPriceRange, setSelectedPriceRange] = useState(null);
@@ -28,6 +29,8 @@ export default function Home({ products, error }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([...(products || [])]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 20;
 
   // Debounce the search query by 300ms to improve performance (CS Grad Perspective)
   React.useEffect(() => {
@@ -77,7 +80,15 @@ export default function Home({ products, error }) {
     }
 
     setFilteredProducts(result);
+    setCurrentPage(1); // Reset pagination on re-filter
   }, [products, selectedCategory, selectedPriceRange, sortBy, debouncedQuery]);
+
+  // Derived Paginated Product List
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE) || 1;
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   // JSON-LD Schema for SEO
   const schemaData = {
@@ -221,44 +232,49 @@ export default function Home({ products, error }) {
             </aside>
 
             <section className={styles['products-section']}>
-              {error ? (
-                <div role="alert" style={{ textAlign: 'center', padding: '64px 24px', background: 'var(--color-surface)' }}>
-                  <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', marginBottom: '16px' }}>Collections Unavailable</h2>
-                  <p style={{ color: 'var(--color-text-secondary)', maxWidth: '400px', margin: '0 auto' }}>
-                    Our core servers are currently syncing the latest luxury inventory. Please refresh the page in a moment.
-                  </p>
-                </div>
-              ) : products?.length === 0 ? (
-                <div style={{ padding: '64px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                  Loading the MUSE Collection...
-                </div>
-              ) : filteredProducts.length === 0 ? (
+              {filteredProducts.length === 0 ? (
                 <div style={{ padding: '64px', textAlign: 'center', fontFamily: 'var(--font-body)', fontSize: '1.2rem', color: 'var(--color-text-primary)' }}>
                   No products found matching your search.
                 </div>
               ) : (
-                <ProductGrid products={filteredProducts} />
+                <ProductGrid products={paginatedProducts} />
               )}
 
-              {/* Pagination */}
-              <nav className={styles.pagination} aria-label="Product page navigation">
-                <button className={styles['pagination__btn']} aria-label="Previous page" disabled>
-                  ‹
-                </button>
-                {[1, 2, 3].map((page) => (
-                  <button
-                    key={page}
-                    className={`${styles['pagination__btn']} ${page === 1 ? styles['pagination__btn--active'] : ''}`}
-                    aria-label={`Page ${page}`}
-                    aria-current={page === 1 ? 'page' : undefined}
+              {/* Pagination Slider */}
+              {totalPages > 1 && (
+                <nav className={styles.pagination} aria-label="Product page navigation">
+                  <button 
+                    className={styles['pagination__btn']} 
+                    aria-label="Previous page" 
+                    disabled={currentPage === 1}
+                    onClick={() => { setCurrentPage(c => c - 1); window.scrollTo(0, 0); }}
                   >
-                    {page}
+                    ‹
                   </button>
-                ))}
-                <button className={styles['pagination__btn']} aria-label="Next page">
-                  ›
-                </button>
-              </nav>
+                  {[...Array(totalPages)].map((_, idx) => {
+                    const page = idx + 1;
+                    return (
+                      <button
+                        key={page}
+                        className={`${styles['pagination__btn']} ${currentPage === page ? styles['pagination__btn--active'] : ''}`}
+                        aria-label={`Page ${page}`}
+                        aria-current={currentPage === page ? 'page' : undefined}
+                        onClick={() => { setCurrentPage(page); window.scrollTo(0, 0); }}
+                      >
+                        {page}
+                      </button>
+                    )
+                  })}
+                  <button 
+                    className={styles['pagination__btn']} 
+                    aria-label="Next page"
+                    disabled={currentPage === totalPages}
+                    onClick={() => { setCurrentPage(c => c + 1); window.scrollTo(0, 0); }}
+                  >
+                    ›
+                  </button>
+                </nav>
+              )}
             </section>
           </div>
         </main>
@@ -270,47 +286,14 @@ export default function Home({ products, error }) {
 }
 
 /**
- * Server-Side Rendering — fetches products from Fake Store API
- * on every request for fresh data and SEO benefits.
+ * Server-Side Rendering (Static Props) — Loads the 80 item static database directly into the DOM
+ * Provides 100% fail-safe deployment without external network dependency layers.
  */
-export async function getServerSideProps() {
-  try {
-    // 8-second timeout to prevent Netlify 10-second serverless function crash
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const res = await fetch('https://fakestoreapi.com/products', {
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      throw new Error(`API responded with status: ${res.status}`);
-    }
-
-    const fetchedProducts = await res.json();
-    
-    // Multiply the products array to simulate a larger store (MUSE aesthetic needs a robust grid)
-    const products = [];
-    for (let i = 0; i < 4; i++) {
-        products.push(...fetchedProducts.map(p => ({ ...p, id: p.id + (i * 1000) })));
-    }
-
-    return {
-      props: {
-        products,
-        error: null,
-      },
-    };
-  } catch (err) {
-    console.error('Failed to fetch products:', err.message);
-
-    return {
-      props: {
-        products: [],
-        error: true,
-      },
-    };
-  }
+export async function getStaticProps() {
+  return {
+    props: {
+      products: STATIC_PRODUCTS,
+      error: null,
+    },
+  };
 }

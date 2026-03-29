@@ -5,6 +5,11 @@ import { useShop } from '../context/ShopContext';
 const ProductCard = ({ product }) => {
   const { wishlist, toggleWishlist, addToCart } = useShop();
   const [addedToCart, setAddedToCart] = useState(false);
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  // Fallback image for catastrophic CDN failures
+  const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1599643478514-4a11011c770c?w=600&q=80';
 
   // Check if product is in wishlist
   const isWishlisted = wishlist.some(item => item.id === product.id);
@@ -29,11 +34,21 @@ const ProductCard = ({ product }) => {
       {/* Product image */}
       <div className={styles['product-card__image-wrap']}>
         <a href={`/product/${product.id}`} aria-label={`View ${product.title}`}>
+          {/* Skeleton Pulse layer underneath */}
+          {!imgLoaded && (
+            <div className={styles['product-card__image-skeleton']} aria-hidden="true" />
+          )}
+          
           <img
-            src={product.image}
+            src={imgError ? FALLBACK_IMAGE : product.image}
             alt={`${product.title} - product image`}
-            className={styles['product-card__image']}
+            className={`${styles['product-card__image']} ${imgLoaded ? styles['product-card__image--loaded'] : ''}`}
             loading="lazy"
+            onLoad={() => setImgLoaded(true)}
+            onError={() => {
+              setImgError(true);
+              setImgLoaded(true); // Release the skeleton
+            }}
             title={seoImageName}
           />
         </a>
