@@ -18,6 +18,9 @@ const SORT_OPTIONS = [
 ];
 
 export default function Home({ products, error }) {
+  // === Vercel SSR Hydration Debugging ===
+  console.log("Products Loaded:", products?.length || 0);
+
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedPriceRange, setSelectedPriceRange] = useState(null);
   const [sortBy, setSortBy] = useState('default');
